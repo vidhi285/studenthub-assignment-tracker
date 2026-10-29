@@ -1,0 +1,19 @@
+{% extends "auth_base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block auth_content %}
+<h1>Welcome back</h1>
+<p class="text-muted mb-4">Sign in to see what is due next.</p>
+<form method="post" novalidate>
+  {{ form.hidden_tag() }}
+  {{ ui.field(form.email, autocomplete="email", placeholder="you@college.edu", autofocus=true) }}
+  {{ ui.password_field(form.password, autocomplete="current-password") }}
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="form-check">
+      {{ form.remember(class_="form-check-input") }}
+      {{ form.remember.label(class_="form-check-label small") }}
+    </div>
+  </div>
+  <button type="submit" class="btn btn-primary w-100 py-2" data-loading-text="Signing in…">Sign in</button>
+</form>
+<p class="text-center text-muted small mt-4 mb-0">New to StudentHub? <a href="{{ url_for('auth.register') }}" class="fw-semibold">Create an account</a></p>
+{% endblock %}

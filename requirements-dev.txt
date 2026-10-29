@@ -1,0 +1,3 @@
+# Test-only dependencies (CI and the local "tests" Compose service).
+-r requirements.txt
+pytest==9.1.1

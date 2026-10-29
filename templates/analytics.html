@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Analytics{% endblock %}
+{% block content %}
+{{ ui.page_header("Progress & analytics", "Calculated from your own records. Study time counts completed sessions only.") }}
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form class="d-flex flex-wrap align-items-end gap-3" method="get" action="{{ url_for('main.analytics') }}">
+      <div><label class="form-label" for="from">From</label><input class="form-control form-control-sm" type="date" id="from" name="from" value="{{ date_from.isoformat() }}" required></div>
+      <div><label class="form-label" for="to">To</label><input class="form-control form-control-sm" type="date" id="to" name="to" value="{{ date_to.isoformat() }}" required></div>
+      <button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-arrow-repeat"></i>Update</button>
+      <a class="btn btn-light btn-sm" href="{{ url_for('main.analytics') }}">Last 8 weeks</a>
+      <span class="text-muted small ms-auto">Range: {{ date_from | datefmt("%d %b %Y") }} – {{ date_to | datefmt("%d %b %Y") }}</span>
+    </form>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  {% for label, value, meta, tone, icon in [
+      ("Overall completion", (overview.completion_pct ~ "%") if overview.completion_pct is not none else "—", overview.completed ~ " of " ~ overview.total ~ " assignments, all time", "tone-primary", "bi-pie-chart"),
+      ("Completed in range", range_completed, "Assignments marked completed", "tone-success", "bi-check2-circle"),
+      ("Study time in range", range_minutes | minutes, "Completed sessions", "tone-info", "bi-stopwatch"),
+      ("Weekly average", avg_weekly_minutes | minutes, "Study time per week in range", "tone-warning", "bi-graph-up")] %}
+  <div class="col-6 col-xl-3">
+    <div class="card stat-card">
+      <div class="d-flex justify-content-between align-items-start mb-2"><span class="stat-label">{{ label }}</span><span class="stat-icon {{ tone }}"><i class="bi {{ icon }}"></i></span></div>
+      <div class="stat-value">{{ value }}</div>
+      <div class="stat-meta mt-1">{{ meta }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-xl-8">
+    <div class="card h-100">
+      <div class="card-header"><div><h2 class="card-title">Weekly study hours</h2><div class="card-subtitle">Completed study hours and assignments per week (Mon–Sun)</div></div></div>
+      <div class="card-body">
+        {% if has_weekly_data %}<div class="chart-box tall"><canvas id="weeklyChart" role="img" aria-label="Weekly completed study hours and completed assignments"></canvas></div>
+        {% else %}{{ ui.empty_state("bi-bar-chart", "No completed activity in this range", "Mark study sessions or assignments as completed to see weekly trends.", compact=True) }}{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card h-100">
+      <div class="card-header"><div><h2 class="card-title">Completed vs pending</h2><div class="card-subtitle">Assignments due in the selected range</div></div></div>
+      <div class="card-body">
+        {% if has_status_data %}
+        <div class="chart-box short mb-3"><canvas id="statusChart" role="img" aria-label="Doughnut chart of assignments due in range by status"></canvas></div>
+        <ul class="legend-list">
+          <li><span>Completed</span><strong class="tabular">{{ breakdown.completed }}</strong></li>
+          <li><span>In progress</span><strong class="tabular">{{ breakdown.in_progress }}</strong></li>
+          <li><span>Pending</span><strong class="tabular">{{ breakdown.pending }}</strong></li>
+          <li><span>Overdue</span><strong class="tabular text-danger">{{ breakdown.overdue }}</strong></li>
+        </ul>
+        {% else %}{{ ui.empty_state("bi-pie-chart", "No assignments due in range", "Widen the date range or add assignments.", compact=True) }}{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-xl-6">
+    <div class="card h-100">
+      <div class="card-header"><div><h2 class="card-title">Subject-wise completion</h2><div class="card-subtitle">All assignments per subject</div></div></div>
+      <div class="card-body">
+        {% if has_subject_data %}<div class="chart-box" style="height: {{ [chart_data.subjects.labels | length * 46 + 80, 220] | max }}px"><canvas id="subjectChart" role="img" aria-label="Stacked bar chart of completed and remaining assignments per subject"></canvas></div>
+        {% else %}{{ ui.empty_state("bi-collection", "No assignments yet", "Add assignments to subjects to compare progress.", url_for('assignments.create'), "New assignment", compact=True) }}{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card h-100">
+      <div class="card-header"><div><h2 class="card-title">Upcoming workload</h2><div class="card-subtitle">Next 14 days: open assignments due and planned study hours</div></div></div>
+      <div class="card-body">
+        {% if has_workload_data %}<div class="chart-box"><canvas id="workloadChart" role="img" aria-label="Assignments due and planned study hours for the next 14 days"></canvas></div>
+        {% else %}{{ ui.empty_state("bi-calendar-check", "A clear two weeks", "No open assignments or planned sessions in the next 14 days.", url_for('study.create'), "Plan session", compact=True) }}{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<script id="chart-data" type="application/json">{{ chart_data | tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit assignment" if assignment else "New assignment" }}{% endblock %}
+{% block content %}
+{% if assignment %}
+  {% set crumbs = [("Assignments", url_for('assignments.index')), (assignment.title, url_for('assignments.detail', assignment_id=assignment.id)), ("Edit", None)] %}
+{% else %}
+  {% set crumbs = [("Assignments", url_for('assignments.index')), ("New", None)] %}
+{% endif %}
+{{ ui.page_header("Edit assignment" if assignment else "New assignment", "Due dates and times use the " ~ config.APP_TIMEZONE ~ " time zone.", crumbs) }}
+
+<div class="row">
+  <div class="col-lg-9 col-xl-8">
+    <div class="card">
+      <form method="post" novalidate class="card-body p-4">
+        {{ form.hidden_tag() }}
+        {{ ui.field(form.title, placeholder="e.g. Normalisation worksheet", maxlength=200) }}
+        <div class="row">
+          <div class="col-md-6">{{ ui.field(form.subject_id) }}</div>
+          <div class="col-md-3 col-6">{{ ui.field(form.priority) }}</div>
+          <div class="col-md-3 col-6">{{ ui.field(form.status) }}</div>
+        </div>
+        <div class="row">
+          <div class="col-md-6">{{ ui.field(form.due_date, help=None if assignment else "Today or later.") }}</div>
+          <div class="col-md-6">{{ ui.field(form.due_time, help="Leave empty to mean end of day.") }}</div>
+        </div>
+        {{ ui.field(form.description, rows=5, placeholder="Requirements, submission link, notes…") }}
+        <div class="d-flex gap-2 justify-content-end">
+          <a class="btn btn-light" href="{{ url_for('assignments.detail', assignment_id=assignment.id) if assignment else url_for('assignments.index') }}">Cancel</a>
+          <button type="submit" class="btn btn-primary" data-loading-text="Saving…"><i class="bi bi-check-lg"></i>{{ "Save changes" if assignment else "Create assignment" }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

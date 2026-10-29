@@ -1,0 +1,15 @@
+{% extends "auth_base.html" %}
+{% block title %}Create account{% endblock %}
+{% block auth_content %}
+<h1>Create your account</h1>
+<p class="text-muted mb-4">It takes less than a minute. Your data stays private to you.</p>
+<form method="post" novalidate>
+  {{ form.hidden_tag() }}
+  {{ ui.field(form.display_name, autocomplete="name", placeholder="Your full name", autofocus=true) }}
+  {{ ui.field(form.email, autocomplete="email", placeholder="you@college.edu") }}
+  {{ ui.password_field(form.password, autocomplete="new-password", help="At least 8 characters, including a letter and a number.") }}
+  {{ ui.password_field(form.confirm_password, autocomplete="new-password") }}
+  <button type="submit" class="btn btn-primary w-100 py-2 mt-2" data-loading-text="Creating account…">Create account</button>
+</form>
+<p class="text-center text-muted small mt-4 mb-0">Already have an account? <a href="{{ url_for('auth.login') }}" class="fw-semibold">Sign in</a></p>
+{% endblock %}

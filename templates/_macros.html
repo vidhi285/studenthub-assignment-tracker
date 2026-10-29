@@ -1,0 +1,107 @@
+{# Reusable UI building blocks. Import with: {% import "_macros.html" as ui %} #}
+
+{% macro csrf_field() -%}
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{%- endmacro %}
+
+{% macro field(f, help=None, wrapper="mb-3", label=True) -%}
+{%- set widget_class = "form-select" if f.type == "SelectField" else "form-control" -%}
+<div class="{{ wrapper }}">
+  {% if label %}{{ f.label(class_="form-label") }}{% if f.flags.optional %} <span class="text-muted small fw-normal">(optional)</span>{% endif %}{% endif %}
+  {{ f(class_=widget_class ~ (" is-invalid" if f.errors else ""), **kwargs) }}
+  {% for error in f.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+  {% if help %}<div class="form-text">{{ help }}</div>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro password_field(f, autocomplete="current-password", help=None) -%}
+<div class="mb-3">
+  {{ f.label(class_="form-label") }}
+  <div class="input-wrap">
+    {{ f(class_="form-control" ~ (" is-invalid" if f.errors else ""), autocomplete=autocomplete, **kwargs) }}
+    <button type="button" class="password-toggle" data-password-toggle="{{ f.id }}" aria-label="Show password"><i class="bi bi-eye"></i></button>
+  </div>
+  {% for error in f.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+  {% if help %}<div class="form-text">{{ help }}</div>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro status_badge(status) -%}
+{%- set icons = {"pending": "bi-circle", "in_progress": "bi-hourglass-split", "completed": "bi-check-circle-fill"} -%}
+<span class="badge-soft status-{{ status }}"><i class="bi {{ icons[status] }}" aria-hidden="true"></i>{{ STATUSES[status] }}</span>
+{%- endmacro %}
+
+{% macro priority_badge(priority) -%}
+<span class="badge-soft priority-{{ priority }}"><i class="bi bi-flag-fill" aria-hidden="true"></i>{{ PRIORITIES[priority] }}</span>
+{%- endmacro %}
+
+{% macro due_flag(a) -%}
+{%- if a.is_overdue -%}<span class="badge-soft flag-overdue"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>Overdue</span>
+{%- elif a.is_due_soon -%}<span class="badge-soft flag-soon"><i class="bi bi-alarm" aria-hidden="true"></i>Due soon</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro due_label(a) -%}
+{{ a.due_date | datefmt("%d %b %Y") }}{% if a.due_time %} · {{ a.due_time | timefmt }}{% endif %}
+{%- endmacro %}
+
+{% macro subject_chip(name, color) -%}
+<span class="subject-chip"><span class="subject-dot" style="--dot: {{ color }}"></span>{{ name }}</span>
+{%- endmacro %}
+
+{% macro empty_state(icon, title, text, action_url=None, action_label=None, compact=False) -%}
+<div class="empty-state{{ ' compact' if compact }}">
+  <div class="empty-icon"><i class="bi {{ icon }}" aria-hidden="true"></i></div>
+  <h3>{{ title }}</h3>
+  <p>{{ text }}</p>
+  {% if action_url %}<a class="btn btn-primary btn-sm" href="{{ action_url }}"><i class="bi bi-plus-lg"></i>{{ action_label }}</a>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro pagination(page, pages) -%}
+{% if pages > 1 %}
+<nav aria-label="Pagination">
+  <ul class="pagination pagination-sm">
+    <li class="page-item {{ 'disabled' if page <= 1 }}"><a class="page-link" href="{{ url_with(page=page - 1) if page > 1 else '#' }}" aria-label="Previous page"><i class="bi bi-chevron-left"></i></a></li>
+    {% for p in range(1, pages + 1) %}
+      {% if p == 1 or p == pages or (p >= page - 2 and p <= page + 2) %}
+      <li class="page-item {{ 'active' if p == page }}"><a class="page-link" href="{{ url_with(page=p) }}" {% if p == page %}aria-current="page"{% endif %}>{{ p }}</a></li>
+      {% elif p == page - 3 or p == page + 3 %}
+      <li class="page-item disabled"><span class="page-link">…</span></li>
+      {% endif %}
+    {% endfor %}
+    <li class="page-item {{ 'disabled' if page >= pages }}"><a class="page-link" href="{{ url_with(page=page + 1) if page < pages else '#' }}" aria-label="Next page"><i class="bi bi-chevron-right"></i></a></li>
+  </ul>
+</nav>
+{% endif %}
+{%- endmacro %}
+
+{% macro complete_button(a, next_url) -%}
+<form method="post" action="{{ url_for('assignments.set_status', assignment_id=a.id) }}" class="d-inline">
+  {{ csrf_field() }}
+  <input type="hidden" name="next" value="{{ next_url }}">
+  {% if a.status == "completed" %}
+  <input type="hidden" name="status" value="pending">
+  <button type="submit" class="complete-toggle done" aria-label="Reopen {{ a.title }}" title="Reopen"><i class="bi bi-check-lg"></i></button>
+  {% else %}
+  <input type="hidden" name="status" value="completed">
+  <button type="submit" class="complete-toggle" aria-label="Mark {{ a.title }} as completed" title="Mark as completed"><i class="bi bi-check-lg"></i></button>
+  {% endif %}
+</form>
+{%- endmacro %}
+
+{% macro page_header(title, subtitle=None, crumbs=None) -%}
+<div class="page-header">
+  <div>
+    {% if crumbs %}
+    <nav aria-label="Breadcrumb"><ol class="breadcrumb">
+      {% for label, url in crumbs %}
+        {% if url %}<li class="breadcrumb-item"><a href="{{ url }}">{{ label }}</a></li>{% else %}<li class="breadcrumb-item active" aria-current="page">{{ label }}</li>{% endif %}
+      {% endfor %}
+    </ol></nav>
+    {% endif %}
+    <h1 class="page-title">{{ title }}</h1>
+    {% if subtitle %}<p class="page-subtitle">{{ subtitle }}</p>{% endif %}
+  </div>
+  <div class="d-flex flex-wrap gap-2">{{ caller() if caller }}</div>
+</div>
+{%- endmacro %}

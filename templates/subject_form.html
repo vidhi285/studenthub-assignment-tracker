@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit subject" if subject else "New subject" }}{% endblock %}
+{% block content %}
+{% set crumbs = [("Subjects", url_for('subjects.index'))] %}
+{% if subject %}{% set crumbs = crumbs + [(subject.name, url_for('subjects.detail', subject_id=subject.id)), ("Edit", None)] %}{% else %}{% set crumbs = crumbs + [("New", None)] %}{% endif %}
+{{ ui.page_header("Edit subject" if subject else "New subject", "Name it the way it appears on your timetable.", crumbs) }}
+
+<div class="row">
+  <div class="col-lg-8 col-xl-7">
+    <div class="card">
+      <form method="post" novalidate class="card-body p-4">
+        {{ form.hidden_tag() }}
+        <div class="row">
+          <div class="col-md-8">{{ ui.field(form.name, placeholder="e.g. Database Management Systems", maxlength=100) }}</div>
+          <div class="col-md-4">{{ ui.field(form.code, placeholder="e.g. CS301", maxlength=20) }}</div>
+        </div>
+        {{ ui.field(form.description, rows=3, placeholder="Instructor, syllabus notes, grading weights…", maxlength=1000) }}
+        <div class="mb-4">
+          {{ form.color.label(class_="form-label") }}
+          <div class="d-flex flex-wrap align-items-center gap-3">
+            <div class="swatches" data-swatches="{{ form.color.id }}" role="group" aria-label="Preset colours">
+              {% for c in palette %}<button type="button" class="swatch" style="--c: {{ c }}" data-color="{{ c }}" aria-label="Use colour {{ c }}" aria-pressed="false"></button>{% endfor %}
+            </div>
+            <input type="color" id="{{ form.color.id }}" name="{{ form.color.name }}" value="{{ form.color.data or '#4F46E5' }}" class="form-control form-control-color{{ ' is-invalid' if form.color.errors }}" aria-label="Custom colour">
+          </div>
+          {% for error in form.color.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+        </div>
+        <div class="d-flex gap-2 justify-content-end">
+          <a class="btn btn-light" href="{{ url_for('subjects.detail', subject_id=subject.id) if subject else url_for('subjects.index') }}">Cancel</a>
+          <button type="submit" class="btn btn-primary" data-loading-text="Saving…"><i class="bi bi-check-lg"></i>{{ "Save changes" if subject else "Create subject" }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

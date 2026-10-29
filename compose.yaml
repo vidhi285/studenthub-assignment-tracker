@@ -1,0 +1,107 @@
+# Local development stack: Flask (Gunicorn) + MySQL 8.4.
+#
+#   docker compose up -d --build                  start / rebuild after code changes
+#   docker compose ps                             status and health
+#   docker compose logs -f web                    follow application logs
+#   docker compose down                           stop (KEEPS the database volume)
+#   docker compose --profile test run --rm tests  run the test suite in containers
+#
+# Never use `docker compose down -v` for routine cleanup: -v deletes the mysql_data
+# volume, which permanently erases every user, subject and assignment.
+
+name: studenthub
+
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-studenthub}
+      MYSQL_USER: ${MYSQL_USER:-studenthub}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+      TZ: UTC
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      # Exit code 0 as soon as the real server accepts TCP connections.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    networks: [backend]
+    # The database is NOT published on the host. To inspect it with a GUI tool,
+    # uncomment the next two lines (bound to localhost only) and restart.
+    # ports:
+    #   - "127.0.0.1:3307:3306"
+
+  web:
+    build:
+      context: .
+      target: production
+      args:
+        APP_VERSION: local
+    image: studenthub-web:local
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-3306}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-studenthub}
+      MYSQL_USER: ${MYSQL_USER:-studenthub}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Kolkata}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+    ports:
+      - "${APP_PORT:-5000}:5000"
+    networks: [backend]
+
+  # ---- Test profile: an isolated, throw-away database that lives in memory ----
+  db-test:
+    profiles: ["test"]
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: studenthub_test
+      MYSQL_USER: studenthub
+      MYSQL_PASSWORD: test_password
+      MYSQL_ROOT_PASSWORD: root_test_password
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+      start_period: 20s
+    networks: [testnet]
+
+  tests:
+    profiles: ["test"]
+    build:
+      context: .
+      target: test
+    image: studenthub-tests:local
+    depends_on:
+      db-test:
+        condition: service_healthy
+    environment:
+      APP_ENV: testing
+      DB_HOST: db-test
+      DB_PORT: 3306
+      MYSQL_DATABASE: studenthub_test
+      MYSQL_USER: studenthub
+      MYSQL_PASSWORD: test_password
+    networks: [testnet]
+
+volumes:
+  mysql_data:
+
+networks:
+  backend:
+  testnet:

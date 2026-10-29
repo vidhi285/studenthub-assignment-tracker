@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="auth-wrap">
+  <section class="auth-aside" aria-hidden="true">
+    <div class="brand">
+      <span class="brand-mark"><i class="bi bi-mortarboard-fill"></i></span>
+      <span><span class="brand-name d-block">StudentHub</span><span class="brand-sub">Assignments &amp; deadlines</span></span>
+    </div>
+    <h2>Every deadline, subject and study hour in one calm place.</h2>
+    <p>Plan your coursework, see what is due next, and track how your study time adds up week by week.</p>
+    <ul class="auth-points">
+      <li><i class="bi bi-calendar2-check"></i>Calendar view of every due date</li>
+      <li><i class="bi bi-stopwatch"></i>Weekly study planner with completed hours</li>
+      <li><i class="bi bi-graph-up-arrow"></i>Progress analytics per subject</li>
+    </ul>
+    <div class="auth-preview">
+      <div class="small-caps mb-2" style="color:#8f99c8">Example of what you will track</div>
+      <div class="row-mini"><span class="subject-dot" style="--dot:#818cf8"></span><span class="flex-grow-1">Lab report</span><span class="badge-soft flag-soon">Due soon</span></div>
+      <div class="row-mini"><span class="subject-dot" style="--dot:#38bdf8"></span><span class="flex-grow-1">Problem set 4</span><span class="badge-soft status-in_progress">In progress</span></div>
+      <div class="row-mini"><span class="subject-dot" style="--dot:#34d399"></span><span class="flex-grow-1">Reading summary</span><span class="badge-soft status-completed">Completed</span></div>
+    </div>
+  </section>
+  <main class="auth-panel" id="main">
+    <button class="icon-btn auth-theme" type="button" data-theme-toggle aria-label="Toggle theme"><i class="bi bi-moon-stars"></i></button>
+    <div class="auth-card fade-in">
+      <div class="d-lg-none mb-4">
+        <a class="d-inline-flex align-items-center gap-2 text-decoration-none" href="{{ url_for('auth.login') }}">
+          <span class="brand-mark"><i class="bi bi-mortarboard-fill"></i></span><span class="fw-bold fs-5 text-body">StudentHub</span>
+        </a>
+      </div>
+      {% block auth_content %}{% endblock %}
+    </div>
+  </main>
+</div>
+{% include "_toasts.html" %}
+{% endblock %}

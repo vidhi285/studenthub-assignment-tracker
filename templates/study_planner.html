@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Study planner{% endblock %}
+{% block content %}
+{% call ui.page_header("Study planner", "Plan focused sessions for the week and mark them done. Only completed sessions count as study time.") %}
+  <a class="btn btn-primary" href="{{ url_for('study.create') }}"><i class="bi bi-plus-lg"></i>Plan session</a>
+{% endcall %}
+
+{% if not has_subjects %}
+<div class="card"><div class="card-body">{{ ui.empty_state("bi-collection", "Add a subject first", "Study sessions belong to a subject. Create one to start planning.", url_for('subjects.create'), "New subject") }}</div></div>
+{% else %}
+<div class="row g-3 mb-3">
+  {% for label, value, tone, icon in [
+      ("Completed this week", summary.completed_minutes | minutes, "tone-success", "bi-check2-circle"),
+      ("Planned this week", summary.scheduled_minutes | minutes, "tone-primary", "bi-calendar-week"),
+      ("Sessions done", summary.completed_count ~ " / " ~ summary.count, "tone-info", "bi-list-check"),
+      ("All-time study", summary.all_time_minutes | minutes, "tone-warning", "bi-trophy")] %}
+  <div class="col-6 col-lg-3">
+    <div class="card stat-card">
+      <div class="d-flex justify-content-between align-items-start mb-2"><span class="stat-label">{{ label }}</span><span class="stat-icon {{ tone }}"><i class="bi {{ icon }}"></i></span></div>
+      <div class="stat-value">{{ value }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card mb-3">
+  <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <div>
+      <h2 class="h6 mb-0">Week of {{ week_start | datefmt("%d %b") }} – {{ week_end | datefmt("%d %b %Y") }}</h2>
+      {% if summary.completion_pct is not none %}
+      <div class="d-flex align-items-center gap-2 mt-2" style="min-width: 240px">
+        <div class="progress progress-thin flex-grow-1" role="progressbar" aria-label="Weekly plan completed" aria-valuenow="{{ summary.completion_pct }}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width: {{ summary.completion_pct }}%; background: var(--sh-success)"></div></div>
+        <span class="small text-muted tabular">{{ summary.completion_pct }}% of planned time done</span>
+      </div>
+      {% endif %}
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-light btn-sm" href="{{ url_for('study.index', week=prev_week.isoformat()) }}" aria-label="Previous week"><i class="bi bi-chevron-left"></i></a>
+      <a class="btn btn-light btn-sm" href="{{ url_for('study.index') }}">This week</a>
+      <a class="btn btn-light btn-sm" href="{{ url_for('study.index', week=next_week.isoformat()) }}" aria-label="Next week"><i class="bi bi-chevron-right"></i></a>
+    </div>
+  </div>
+</div>
+
+<div class="week-strip mb-4">
+  {% for day in days %}
+  <section class="day-col {{ 'is-today' if day.date == today }}" aria-label="{{ day.date | datefmt('%A %d %B') }}">
+    <div class="day-head"><span class="dow">{{ day.date | datefmt("%a") }}</span><span class="dnum">{{ day.date.day }}</span></div>
+    {% for s in day.sessions %}
+    <article class="session-card {{ 'done' if s.is_completed }} {{ 'missed' if s.is_missed }}" style="--c: {{ s.subject_color }}">
+      <div class="d-flex justify-content-between gap-2">
+        <div class="t">{{ s.title }}</div>
+        <div class="dropdown">
+          <button class="btn btn-ghost btn-sm p-0 px-1" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for {{ s.title }}"><i class="bi bi-three-dots-vertical"></i></button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="{{ url_for('study.edit', session_id=s.id) }}"><i class="bi bi-pencil"></i>Edit</a></li>
+            <li><form method="post" action="{{ url_for('study.delete', session_id=s.id) }}" data-confirm="Delete the session “{{ s.title }}”?" data-confirm-title="Delete study session?" data-confirm-ok="Delete">{{ ui.csrf_field() }}<input type="hidden" name="next" value="{{ request.full_path }}"><button class="dropdown-item text-danger" type="submit"><i class="bi bi-trash3 text-danger"></i>Delete</button></form></li>
+          </ul>
+        </div>
+      </div>
+      <div class="m">{{ s.start_time | timefmt }}–{{ s.ends_at.strftime('%H:%M') }} · {{ s.duration_minutes | minutes }}</div>
+      <div class="m text-truncate" title="{{ s.subject_name }}">{{ s.subject_name }}</div>
+      {% if s.is_missed %}<div class="m text-danger fw-semibold"><i class="bi bi-exclamation-circle"></i> Not marked done</div>{% endif %}
+      <form method="post" action="{{ url_for('study.complete', session_id=s.id) }}" class="mt-2">
+        {{ ui.csrf_field() }}
+        <input type="hidden" name="next" value="{{ request.full_path }}">
+        <input type="hidden" name="completed" value="{{ '0' if s.is_completed else '1' }}">
+        {% if s.is_completed %}
+        <button class="btn btn-sm btn-soft-success session-btn" type="submit" title="Mark as not completed" aria-label="{{ s.title }} completed; mark as not completed"><i class="bi bi-check2"></i>Done</button>
+        {% else %}
+        <button class="btn btn-sm btn-light session-btn" type="submit" aria-label="Mark {{ s.title }} as done"><i class="bi bi-check2-circle"></i>Mark done</button>
+        {% endif %}
+      </form>
+    </article>
+    {% endfor %}
+    <a class="day-add" href="{{ url_for('study.create', date=day.date.isoformat()) }}"><i class="bi bi-plus"></i> Add</a>
+  </section>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <div class="card-header"><div><h2 class="card-title">Next up</h2><div class="card-subtitle">Upcoming sessions that are not completed</div></div></div>
+  {% if upcoming %}
+    {% for s in upcoming %}
+    <div class="list-row">
+      <div class="date-block"><div class="m">{{ s.session_date | datefmt("%b") }}</div><div class="d">{{ s.session_date.day }}</div></div>
+      <div class="flex-grow-1 min-w-0">
+        <a class="row-title d-block text-truncate" href="{{ url_for('study.edit', session_id=s.id) }}">{{ s.title }}</a>
+        <div class="row-meta">{{ ui.subject_chip(s.subject_name, s.subject_color) }}<span><i class="bi bi-clock"></i> {{ s.start_time | timefmt }} · {{ s.duration_minutes | minutes }}</span></div>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+  <div class="card-body">{{ ui.empty_state("bi-calendar-plus", "Nothing planned", "Schedule your next study session to stay ahead of deadlines.", url_for('study.create'), "Plan session", compact=True) }}</div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

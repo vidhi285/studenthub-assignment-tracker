@@ -1,0 +1,19 @@
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+{% set tones = {"success": ("tone-success", "bi-check-circle-fill"), "danger": ("tone-danger", "bi-x-octagon-fill"),
+                "warning": ("tone-warning", "bi-exclamation-triangle-fill"), "info": ("tone-info", "bi-info-circle-fill"),
+                "message": ("tone-info", "bi-info-circle-fill")} %}
+<div class="toast-stack" aria-live="polite" aria-atomic="false">
+  {% for category, message in messages %}
+  {% set tone = tones.get(category, tones["info"]) %}
+  <div class="toast show" role="{{ 'alert' if category in ['danger', 'warning'] else 'status' }}" data-category="{{ category }}">
+    <div class="toast-body d-flex align-items-start gap-3 p-3">
+      <span class="toast-icon {{ tone[0] }}"><i class="bi {{ tone[1] }}" aria-hidden="true"></i></span>
+      <div class="flex-grow-1 pt-1" data-flash="{{ category }}">{{ message }}</div>
+      <button type="button" class="btn-close btn-sm mt-1" data-bs-dismiss="toast" aria-label="Dismiss"></button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}

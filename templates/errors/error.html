@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block body %}
+<main id="main" class="d-flex align-items-center justify-content-center min-vh-100 p-4">
+  <div class="text-center fade-in" style="max-width: 460px">
+    <div class="error-code mb-2">{{ code }}</div>
+    <h1 class="h3 mb-2">{{ title }}</h1>
+    <p class="text-muted mb-4">{{ message }}</p>
+    <div class="d-flex flex-wrap gap-2 justify-content-center">
+      {% if signed_in %}
+      <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary"><i class="bi bi-grid-1x2"></i>Go to dashboard</a>
+      {% else %}
+      <a href="{{ url_for('auth.login') }}" class="btn btn-primary"><i class="bi bi-box-arrow-in-right"></i>Sign in</a>
+      {% endif %}
+      <button type="button" class="btn btn-light" data-history-back>Go back</button>
+    </div>
+  </div>
+</main>
+{% endblock %}

@@ -1,0 +1,236 @@
+# StudentHub CI/CD
+#   pull request to main  -> test, then build the image (not pushed)
+#   push to main          -> test, build + push to GHCR, deploy to the cloud VM, verify health
+#   manual run            -> same as push; optionally redeploy an older image tag (rollback)
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      rollback_tag:
+        description: "Optional: full commit SHA of an earlier image to redeploy (skips test/build)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  test:
+    name: Test (pytest + MySQL 8.4)
+    if: ${{ !inputs.rollback_tag }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: studenthub_test
+          MYSQL_USER: studenthub
+          MYSQL_PASSWORD: test_password
+          MYSQL_ROOT_PASSWORD: root_test_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 --silent"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+    env:
+      APP_ENV: testing
+      DB_HOST: 127.0.0.1
+      DB_PORT: "3306"
+      MYSQL_DATABASE: studenthub_test
+      MYSQL_USER: studenthub
+      MYSQL_PASSWORD: test_password
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Byte-compile sources
+        run: python -m compileall -q app.py config.py wsgi.py manage.py studenthub scripts
+
+      - name: Run tests
+        run: python -m pytest -q
+
+  build:
+    name: Build image${{ github.event_name == 'push' && ' and publish to GHCR' || '' }}
+    needs: test
+    if: ${{ !inputs.rollback_tag }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Compute image name and tags
+        id: meta
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          {
+            echo "image=${image}"
+            echo "tag=${GITHUB_SHA}"
+            echo "tags<<EOF"
+            echo "${image}:${GITHUB_SHA}"
+            echo "${image}:main"
+            echo "${image}:latest"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build${{ github.event_name != 'pull_request' && ' and push' || '' }}
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: production
+          push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            APP_VERSION=${{ github.sha }}
+          labels: |
+            org.opencontainers.image.title=StudentHub
+            org.opencontainers.image.description=Assignment and deadline tracker (Flask + MySQL)
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "Image built successfully (not published for pull requests)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Published \`${{ steps.meta.outputs.image }}:${{ github.sha }}\` (also tagged main, latest)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  deploy:
+    name: Deploy to cloud server
+    needs: [build]
+    # Runs only for main, only after a successful build, and only once the
+    # repository variable DEPLOY_ENABLED is set to "true" (README section 28).
+    if: >-
+      ${{ always() && vars.DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/main' &&
+          github.event_name != 'pull_request' &&
+          (needs.build.result == 'success' || (inputs.rollback_tag && needs.build.result == 'skipped')) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    environment:
+      name: production
+      url: ${{ vars.PUBLIC_URL }}
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    env:
+      TAG: ${{ inputs.rollback_tag || github.sha }}
+      SSH_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check deployment secrets
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          PUBLIC_URL: ${{ vars.PUBLIC_URL }}
+        run: |
+          missing=""
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS PUBLIC_URL; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing secrets/variables:$missing (see README section 28)"
+            exit 1
+          fi
+          if ! [[ "$TAG" =~ ^[A-Za-z0-9_.-]{1,128}$ ]]; then
+            echo "::error::Invalid image tag"
+            exit 1
+          fi
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Upload deployment files
+        env:
+          TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
+        run: |
+          SSH_OPTS=(-i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes)
+          ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" "$TARGET" 'mkdir -p ~/studenthub/backups'
+          scp "${SSH_OPTS[@]}" -P "$SSH_PORT" -q deploy/compose.prod.yaml deploy/Caddyfile scripts/deploy.sh "$TARGET":studenthub/
+          ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" "$TARGET" 'chmod 750 ~/studenthub/deploy.sh'
+
+      - name: Deploy and verify on the server
+        env:
+          TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          # The short-lived job token is sent on stdin (never on the command line) so the
+          # server can pull private images; deploy.sh logs out again when it finishes.
+          printf '%s\n' "$REGISTRY_TOKEN" | ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            -p "$SSH_PORT" "$TARGET" "cd ~/studenthub && GHCR_USERNAME='${REGISTRY_USER}' ./deploy.sh '${TAG}'"
+
+      - name: Verify public health endpoint
+        env:
+          PUBLIC_URL: ${{ vars.PUBLIC_URL }}
+        run: python3 scripts/healthcheck.py "${PUBLIC_URL%/}/health" --expect-version "$TAG" --retries 20 --delay 6
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "Deployed \`${TAG}\` successfully. ${{ vars.PUBLIC_URL }}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Deployment of \`${TAG}\` FAILED. The server keeps (or was rolled back to) the previous version." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Remove SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

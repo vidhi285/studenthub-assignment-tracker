@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit study session" if study_session else "Plan study session" }}{% endblock %}
+{% block content %}
+{% set crumbs = [("Study planner", url_for('study.index')), ("Edit session" if study_session else "New session", None)] %}
+{{ ui.page_header("Edit study session" if study_session else "Plan a study session", "Times use the " ~ config.APP_TIMEZONE ~ " time zone.", crumbs) }}
+
+<div class="row g-3">
+  <div class="col-lg-8 col-xl-7">
+    <div class="card">
+      <form method="post" novalidate class="card-body p-4">
+        {{ form.hidden_tag() }}
+        {{ ui.field(form.title, placeholder="e.g. Revise chapter 3: transactions", maxlength=150) }}
+        {{ ui.field(form.subject_id) }}
+        <div class="row">
+          <div class="col-md-4">{{ ui.field(form.session_date) }}</div>
+          <div class="col-md-4 col-6">{{ ui.field(form.start_time) }}</div>
+          <div class="col-md-4 col-6">{{ ui.field(form.duration_minutes, min=5, max=720, step=5) }}</div>
+        </div>
+        {{ ui.field(form.notes, rows=4, placeholder="Goals for the session, topics, resources…") }}
+        <div class="d-flex gap-2 justify-content-end">
+          <a class="btn btn-light" href="{{ url_for('study.index') }}">Cancel</a>
+          <button type="submit" class="btn btn-primary" data-loading-text="Saving…"><i class="bi bi-check-lg"></i>{{ "Save changes" if study_session else "Schedule session" }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% if study_session %}
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header"><h2 class="card-title">Status</h2></div>
+      <div class="card-body">
+        <p class="small mb-3">{% if study_session.is_completed %}<span class="badge-soft status-completed"><i class="bi bi-check-circle-fill"></i>Completed</span> {{ study_session.completed_at | localtime }}{% else %}<span class="badge-soft status-pending"><i class="bi bi-circle"></i>Not completed</span>{% endif %}</p>
+        <form method="post" action="{{ url_for('study.complete', session_id=study_session.id) }}">
+          {{ ui.csrf_field() }}
+          <input type="hidden" name="completed" value="{{ '0' if study_session.is_completed else '1' }}">
+          <button class="btn btn-sm {{ 'btn-light' if study_session.is_completed else 'btn-soft-success' }}" type="submit">
+            <i class="bi {{ 'bi-arrow-counterclockwise' if study_session.is_completed else 'bi-check2' }}"></i>{{ "Mark as not completed" if study_session.is_completed else "Mark as completed" }}
+          </button>
+        </form>
+      </div>
+    </div>
+    <div class="card danger-zone">
+      <div class="card-body">
+        <h2 class="h6 mb-1">Delete session</h2>
+        <p class="text-muted small">Removes it from your planner and study totals.</p>
+        <form method="post" action="{{ url_for('study.delete', session_id=study_session.id) }}" data-confirm="Delete the session “{{ study_session.title }}”?" data-confirm-title="Delete study session?" data-confirm-ok="Delete">
+          {{ ui.csrf_field() }}
+          <button class="btn btn-soft-danger btn-sm" type="submit"><i class="bi bi-trash3"></i>Delete</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

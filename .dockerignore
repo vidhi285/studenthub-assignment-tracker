@@ -1,0 +1,26 @@
+# Keep the build context small and free of secrets.
+.git
+.github
+.gitignore
+.gitattributes
+.env
+.env.*
+!.env.example
+deploy/.env
+backups/
+*.sql
+*.sql.gz
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+.venv
+venv
+.vscode
+.idea
+*.md
+docs/
+*.zip
+Dockerfile
+compose*.yaml
+!studenthub/
+!studenthub/**

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Calendar{% endblock %}
+{% block content %}
+{% call ui.page_header("Calendar", "Due dates and study sessions month by month. Select a day to see everything on it.") %}
+  <a class="btn btn-primary" href="{{ url_for('assignments.create') }}"><i class="bi bi-plus-lg"></i>New assignment</a>
+{% endcall %}
+
+<div class="row g-3">
+  <div class="col-xl-9">
+    <div class="card">
+      <div class="card-body" id="calendar" data-api="{{ url_for('main.calendar_data') }}" data-initial-month="{{ initial_month }}" data-current-month="{{ today.strftime('%Y-%m') }}">
+        <div class="cal-toolbar mb-3">
+          <h2 class="cal-month" data-cal-title aria-live="polite">&nbsp;</h2>
+          <div class="d-flex gap-2">
+            <button class="btn btn-light btn-sm" type="button" data-cal-today>Today</button>
+            <div class="btn-group" role="group" aria-label="Change month">
+              <button class="btn btn-light btn-sm" type="button" data-cal-prev aria-label="Previous month"><i class="bi bi-chevron-left"></i></button>
+              <button class="btn btn-light btn-sm" type="button" data-cal-next aria-label="Next month"><i class="bi bi-chevron-right"></i></button>
+            </div>
+          </div>
+        </div>
+        <div class="alert alert-danger d-flex align-items-center justify-content-between" data-cal-error hidden role="alert">
+          <span><i class="bi bi-wifi-off me-2"></i>The calendar could not be loaded.</span>
+          <button class="btn btn-sm btn-light" type="button" data-cal-retry>Retry</button>
+        </div>
+        <div class="position-relative">
+          <div class="cal-loading" data-cal-loading><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading calendar…</span></div></div>
+          <div class="cal-grid" data-cal-grid></div>
+        </div>
+        <div class="cal-legend mt-3">
+          <span><b style="background: var(--sh-primary-soft); border-left: 3px solid var(--sh-primary)"></b>Assignment (subject colour)</span>
+          <span><b style="background: var(--sh-danger-soft); border-left: 3px solid var(--sh-danger-solid)"></b>Overdue</span>
+          <span><i class="bi bi-check-circle-fill text-success"></i>Completed</span>
+          <span><i class="bi bi-clock"></i>Study session</span>
+        </div>
+        <noscript><div class="alert alert-warning mt-3">The interactive calendar needs JavaScript. Upcoming deadlines are listed alongside.</div></noscript>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 d-flex flex-column gap-3">
+    <div class="card" id="dayPanel" hidden>
+      <div class="card-header"><h2 class="card-title" data-day-title>Selected day</h2></div>
+      <div class="card-body">
+        <div data-day-body></div>
+        <div class="d-flex flex-wrap gap-2 mt-3" data-day-actions>
+          <a class="btn btn-light btn-sm" data-add="{{ url_for('assignments.create') }}" data-kind="assignment" href="{{ url_for('assignments.create') }}"><i class="bi bi-journal-plus"></i>Assignment</a>
+          <a class="btn btn-light btn-sm" data-add="{{ url_for('study.create') }}" data-kind="session" href="{{ url_for('study.create') }}"><i class="bi bi-stopwatch"></i>Session</a>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div><h2 class="card-title">Upcoming deadlines</h2><div class="card-subtitle">Next 30 days, including overdue</div></div></div>
+      {% if upcoming %}
+        {% for a in upcoming %}
+        <div class="list-row {{ 'is-overdue' if a.is_overdue else ('is-soon' if a.is_due_soon) }}">
+          <div class="date-block {{ 'danger' if a.is_overdue }}"><div class="m">{{ a.due_date | datefmt("%b") }}</div><div class="d">{{ a.due_date.day }}</div></div>
+          <div class="min-w-0 flex-grow-1">
+            <a class="row-title small d-block text-truncate" href="{{ url_for('assignments.detail', assignment_id=a.id) }}">{{ a.title }}</a>
+            <div class="row-meta">{{ ui.subject_chip(a.subject_name, a.subject_color) }}</div>
+            <div class="mt-1">{{ ui.due_flag(a) }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+      <div class="card-body">{{ ui.empty_state("bi-calendar2-check", "No deadlines ahead", "Nothing is due in the next 30 days. Enjoy it, or plan ahead.", url_for('assignments.create'), "New assignment", compact=True) }}</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/calendar.js') }}"></script>{% endblock %}

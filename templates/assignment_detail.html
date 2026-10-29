@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ assignment.title }}{% endblock %}
+{% block content %}
+{% set a = assignment %}
+{% call ui.page_header(a.title, None, [("Assignments", url_for('assignments.index')), (a.title, None)]) %}
+  <a class="btn btn-light" href="{{ url_for('assignments.edit', assignment_id=a.id) }}"><i class="bi bi-pencil"></i>Edit</a>
+  {% if a.status == 'completed' %}
+  <form method="post" action="{{ url_for('assignments.set_status', assignment_id=a.id) }}">{{ ui.csrf_field() }}<input type="hidden" name="status" value="pending">
+    <button class="btn btn-light" type="submit"><i class="bi bi-arrow-counterclockwise"></i>Reopen</button></form>
+  {% else %}
+    {% if a.status == 'pending' %}
+    <form method="post" action="{{ url_for('assignments.set_status', assignment_id=a.id) }}">{{ ui.csrf_field() }}<input type="hidden" name="status" value="in_progress">
+      <button class="btn btn-light" type="submit"><i class="bi bi-hourglass-split"></i>Start</button></form>
+    {% endif %}
+  <form method="post" action="{{ url_for('assignments.set_status', assignment_id=a.id) }}">{{ ui.csrf_field() }}<input type="hidden" name="status" value="completed">
+    <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle"></i>Mark as completed</button></form>
+  {% endif %}
+{% endcall %}
+
+{% if a.is_overdue %}
+<div class="alert alert-danger d-flex align-items-center gap-2" role="alert"><i class="bi bi-exclamation-triangle-fill"></i>This assignment was due {{ ui.due_label(a) }} and is not completed yet.</div>
+{% elif a.is_due_soon %}
+<div class="alert alert-warning d-flex align-items-center gap-2" role="status"><i class="bi bi-alarm"></i>Due soon: {{ ui.due_label(a) }}.</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card h-100" style="border-top: 3px solid {{ a.subject_color }}">
+      <div class="card-body p-4">
+        <div class="d-flex flex-wrap gap-2 mb-4">{{ ui.status_badge(a.status) }} {{ ui.priority_badge(a.priority) }} {{ ui.due_flag(a) }}</div>
+        <dl class="detail-grid mb-4">
+          <div><dt>Subject</dt><dd><a class="text-decoration-none text-body" href="{{ url_for('subjects.detail', subject_id=a.subject_id) }}">{{ ui.subject_chip(a.subject_name, a.subject_color) }}</a></dd></div>
+          <div><dt>Due date</dt><dd>{{ a.due_date | datefmt }}</dd></div>
+          <div><dt>Due time</dt><dd>{{ a.due_time | timefmt if a.due_time else "End of day" }}</dd></div>
+          {% if a.completed_at %}<div><dt>Completed</dt><dd>{{ a.completed_at | localtime }}</dd></div>{% endif %}
+        </dl>
+        <div class="small-caps mb-2">Description</div>
+        {% if a.description %}<div class="prose">{{ a.description }}</div>{% else %}<p class="text-muted mb-0">No description added.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header"><h2 class="card-title">History</h2></div>
+      <div class="card-body small">
+        <div class="d-flex justify-content-between mb-2"><span class="text-muted">Created</span><span>{{ a.created_at | localtime }}</span></div>
+        <div class="d-flex justify-content-between"><span class="text-muted">Last updated</span><span>{{ a.updated_at | localtime }}</span></div>
+      </div>
+    </div>
+    <div class="card danger-zone">
+      <div class="card-body">
+        <h2 class="h6 mb-1">Delete assignment</h2>
+        <p class="text-muted small">This permanently removes the assignment.</p>
+        <form method="post" action="{{ url_for('assignments.delete', assignment_id=a.id) }}" data-confirm="Delete “{{ a.title }}”? This cannot be undone." data-confirm-title="Delete assignment?" data-confirm-ok="Delete">
+          {{ ui.csrf_field() }}
+          <button class="btn btn-soft-danger btn-sm" type="submit"><i class="bi bi-trash3"></i>Delete</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

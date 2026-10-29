@@ -1,0 +1,24 @@
+# Caddy obtains and renews a free Let's Encrypt certificate automatically when
+# SITE_ADDRESS is a hostname that points at this server, for example:
+#   SITE_ADDRESS=studenthub.example.com        (your own domain)
+#   SITE_ADDRESS=203-0-113-10.sslip.io         (no domain needed: sslip.io maps to the IP)
+#   SITE_ADDRESS=:80                           (plain HTTP by IP only; for first tests)
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	reverse_proxy web:5000 {
+		health_uri /health/live
+		health_interval 15s
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

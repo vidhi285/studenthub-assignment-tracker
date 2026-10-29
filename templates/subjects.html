@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Subjects{% endblock %}
+{% block content %}
+{% call ui.page_header("Subjects", "Group assignments and study sessions by course.") %}
+  <a class="btn btn-primary" href="{{ url_for('subjects.create') }}"><i class="bi bi-plus-lg"></i>New subject</a>
+{% endcall %}
+
+{% if subjects %}
+<div class="row g-3">
+  {% for s in subjects %}
+  <div class="col-md-6 col-xl-4">
+    <div class="card subject-card" style="--c: {{ s.color }}">
+      <div class="card-body d-flex flex-column">
+        <div class="d-flex align-items-start gap-3 mb-3">
+          <div class="subject-icon">{{ (s.code or s.name)[:2] | upper }}</div>
+          <div class="min-w-0 flex-grow-1">
+            <a href="{{ url_for('subjects.detail', subject_id=s.id) }}" class="row-title d-block text-truncate stretched-link">{{ s.name }}</a>
+            <div class="text-muted small">{{ s.code or "No code" }}</div>
+          </div>
+          {% if s.overdue %}<span class="badge-soft flag-overdue">{{ s.overdue }} overdue</span>{% endif %}
+        </div>
+        {% if s.description %}<p class="text-muted small mb-3 text-truncate">{{ s.description }}</p>{% endif %}
+        <div class="mt-auto">
+          <div class="d-flex justify-content-between small mb-1">
+            <span class="text-muted">{{ s.completed }} of {{ s.total }} assignments done</span>
+            <span class="fw-semibold tabular">{{ s.completion_pct ~ '%' if s.completion_pct is not none else '—' }}</span>
+          </div>
+          <div class="progress progress-thin mb-3" role="progressbar" aria-label="{{ s.name }} completion" aria-valuenow="{{ s.completion_pct or 0 }}" aria-valuemin="0" aria-valuemax="100">
+            <div class="progress-bar" style="width: {{ s.completion_pct or 0 }}%; background: {{ s.color }}"></div>
+          </div>
+          <div class="d-flex gap-3 small text-muted">
+            <span><i class="bi bi-journal-text"></i> {{ s.total - s.completed }} open</span>
+            <span><i class="bi bi-stopwatch"></i> {{ s.study_minutes | minutes }} studied</span>
+            <span><i class="bi bi-calendar-event"></i> {{ s.sessions }} sessions</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card"><div class="card-body">
+  {{ ui.empty_state("bi-collection", "Add your first subject", "Subjects keep assignments and study time organised by course. Start with the courses you are taking this semester.", url_for('subjects.create'), "New subject") }}
+</div></div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+{% call ui.page_header("Hello, " ~ current_user.first_name, today | datefmt("%A, %d %B %Y") ~ " · here is where things stand.") %}
+  <a class="btn btn-light" href="{{ url_for('subjects.create') }}"><i class="bi bi-collection"></i>New subject</a>
+  <a class="btn btn-light" href="{{ url_for('study.create') }}"><i class="bi bi-stopwatch"></i>Plan session</a>
+  <a class="btn btn-primary" href="{{ url_for('assignments.create') }}"><i class="bi bi-plus-lg"></i>New assignment</a>
+{% endcall %}
+
+{% if subject_total == 0 %}
+<div class="card mb-4">
+  <div class="card-body d-flex flex-column flex-md-row align-items-md-center gap-3 p-4">
+    <div class="stat-icon tone-primary flex-shrink-0" style="width:52px;height:52px;font-size:1.4rem;border-radius:1rem"><i class="bi bi-rocket-takeoff"></i></div>
+    <div class="flex-grow-1">
+      <h2 class="h6 mb-1">Set up StudentHub in three steps</h2>
+      <p class="text-muted small mb-0">1. Add the subjects you are taking · 2. Add assignments with due dates · 3. Plan study sessions and mark them complete.</p>
+    </div>
+    <a href="{{ url_for('subjects.create') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i>Add your first subject</a>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  {% set cards = [
+    ("Total assignments", overview.total, "bi-journal-text", "tone-primary", url_for('assignments.index'), overview.completed ~ " completed"),
+    ("Pending", overview.pending, "bi-circle", "tone-neutral", url_for('assignments.index', status='pending'), "Not started yet"),
+    ("In progress", overview.in_progress, "bi-hourglass-split", "tone-info", url_for('assignments.index', status='in_progress'), "Being worked on"),
+    ("Completed", overview.completed, "bi-check2-circle", "tone-success", url_for('assignments.index', status='completed'), (overview.completion_pct ~ "% of all") if overview.completion_pct is not none else "No assignments yet"),
+    ("Overdue", overview.overdue, "bi-exclamation-octagon", "tone-danger", url_for('assignments.index', status='overdue'), "Past due, not completed"),
+    ("Due in 7 days", overview.upcoming, "bi-alarm", "tone-warning", url_for('main.calendar'), "Upcoming deadlines"),
+    ("Subjects", subject_total, "bi-collection", "tone-primary", url_for('subjects.index'), "Active subjects"),
+    ("Study this week", week_minutes | minutes, "bi-stopwatch", "tone-success", url_for('study.index'), "Completed sessions, Mon–Sun"),
+  ] %}
+  {% for label, value, icon, tone, href, meta in cards %}
+  <div class="col-6 col-md-4 col-xl-3">
+    <a class="stat-link" href="{{ href }}">
+      <div class="card stat-card">
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <span class="stat-label">{{ label }}</span>
+          <span class="stat-icon {{ tone }}"><i class="bi {{ icon }}" aria-hidden="true"></i></span>
+        </div>
+        <div class="stat-value" data-stat="{{ label | lower | replace(' ', '_') }}">{{ value }}</div>
+        <div class="stat-meta mt-1">{{ meta }}</div>
+      </div>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-xl-8">
+    <div class="card h-100">
+      <div class="card-header">
+        <div><h2 class="card-title">Weekly productivity</h2><div class="card-subtitle">Completed study hours and assignments, last 8 weeks</div></div>
+        <a class="btn btn-ghost btn-sm" href="{{ url_for('main.analytics') }}">Analytics <i class="bi bi-arrow-right"></i></a>
+      </div>
+      <div class="card-body">
+        {% if has_weekly_data %}
+        <div class="chart-box"><canvas id="weeklyChart" role="img" aria-label="Bar and line chart of completed study hours and completed assignments per week"></canvas></div>
+        {% else %}
+        {{ ui.empty_state("bi-bar-chart", "No activity in the last 8 weeks", "Complete a study session or an assignment and your weekly progress will appear here.", url_for('study.create'), "Plan a study session", compact=True) }}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card h-100">
+      <div class="card-header"><div><h2 class="card-title">Completion</h2><div class="card-subtitle">All assignments</div></div></div>
+      <div class="card-body">
+        {% if overview.total %}
+        <div class="d-flex align-items-end gap-2 mb-2">
+          <span class="stat-value">{{ overview.completion_pct }}%</span><span class="text-muted small pb-1">{{ overview.completed }} of {{ overview.total }} done</span>
+        </div>
+        <div class="progress mb-4" role="progressbar" aria-label="Completion" aria-valuenow="{{ overview.completion_pct }}" aria-valuemin="0" aria-valuemax="100">
+          <div class="progress-bar" style="width: {{ overview.completion_pct }}%"></div>
+        </div>
+        {% endif %}
+        <div class="small-caps mb-2">Open assignments by priority</div>
+        {% if has_priority_data %}
+        <div class="chart-box short"><canvas id="priorityChart" role="img" aria-label="Doughnut chart of open assignments by priority"></canvas></div>
+        {% else %}
+        {{ ui.empty_state("bi-flag", "Nothing open", "Open assignments will be grouped by priority here.", compact=True) }}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-xl-7">
+    <div class="card h-100">
+      <div class="card-header">
+        <div><h2 class="card-title">Upcoming assignments</h2><div class="card-subtitle">Open work, soonest first. Overdue items are flagged.</div></div>
+        <a class="btn btn-ghost btn-sm" href="{{ url_for('assignments.index', status='open') }}">View all <i class="bi bi-arrow-right"></i></a>
+      </div>
+      {% if upcoming %}
+      <div>
+        {% for a in upcoming %}
+        <div class="list-row {{ 'is-overdue' if a.is_overdue else ('is-soon' if a.is_due_soon) }}">
+          {{ ui.complete_button(a, url_for('main.dashboard')) }}
+          <div class="date-block {{ 'danger' if a.is_overdue }}"><div class="m">{{ a.due_date | datefmt("%b") }}</div><div class="d">{{ a.due_date.day }}</div></div>
+          <div class="flex-grow-1 min-w-0">
+            <a class="row-title d-block text-truncate" href="{{ url_for('assignments.detail', assignment_id=a.id) }}">{{ a.title }}</a>
+            <div class="row-meta">{{ ui.subject_chip(a.subject_name, a.subject_color) }}<span><i class="bi bi-clock"></i> {{ ui.due_label(a) }}</span></div>
+          </div>
+          <div class="d-none d-sm-flex gap-1 flex-wrap justify-content-end">{{ ui.due_flag(a) }} {{ ui.priority_badge(a.priority) }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="card-body">{{ ui.empty_state("bi-check2-all", "You are all caught up", "No open assignments. Add one to start tracking its deadline.", url_for('assignments.create'), "New assignment", compact=True) }}</div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-xl-5 d-flex flex-column gap-3">
+    <div class="card">
+      <div class="card-header">
+        <div><h2 class="card-title">Subject progress</h2><div class="card-subtitle">Completed assignments per subject</div></div>
+        <a class="btn btn-ghost btn-sm" href="{{ url_for('subjects.index') }}">Subjects <i class="bi bi-arrow-right"></i></a>
+      </div>
+      <div class="card-body">
+        {% if subjects %}
+          {% for s in subjects[:6] %}
+          <div class="mb-3">
+            <div class="d-flex justify-content-between small mb-1">
+              <a class="text-decoration-none text-body fw-semibold" href="{{ url_for('subjects.detail', subject_id=s.id) }}">{{ ui.subject_chip(s.name, s.color) }}</a>
+              <span class="text-muted tabular">{{ s.completed }}/{{ s.total }}{% if s.completion_pct is not none %} · {{ s.completion_pct }}%{% endif %}</span>
+            </div>
+            <div class="progress progress-thin" role="progressbar" aria-label="{{ s.name }} completion" aria-valuenow="{{ s.completion_pct or 0 }}" aria-valuemin="0" aria-valuemax="100">
+              <div class="progress-bar" style="width: {{ s.completion_pct or 0 }}%; background: {{ s.color }}"></div>
+            </div>
+          </div>
+          {% endfor %}
+          {% if subjects | length > 6 %}<a class="small" href="{{ url_for('subjects.index') }}">+ {{ subjects | length - 6 }} more subjects</a>{% endif %}
+        {% else %}
+        {{ ui.empty_state("bi-collection", "No subjects yet", "Subjects group your assignments and study sessions.", url_for('subjects.create'), "Add subject", compact=True) }}
+        {% endif %}
+      </div>
+    </div>
+    <div class="card flex-grow-1">
+      <div class="card-header">
+        <div><h2 class="card-title">Recent study sessions</h2><div class="card-subtitle">Today and earlier</div></div>
+        <a class="btn btn-ghost btn-sm" href="{{ url_for('study.index') }}">Planner <i class="bi bi-arrow-right"></i></a>
+      </div>
+      {% if sessions %}
+      <div>
+        {% for s in sessions %}
+        <div class="list-row">
+          <span class="stat-icon {{ 'tone-success' if s.is_completed else 'tone-neutral' }}" style="width:32px;height:32px;border-radius:.55rem"><i class="bi {{ 'bi-check2' if s.is_completed else 'bi-clock' }}"></i></span>
+          <div class="flex-grow-1 min-w-0">
+            <a class="row-title d-block text-truncate small" href="{{ url_for('study.edit', session_id=s.id) }}">{{ s.title }}</a>
+            <div class="row-meta">{{ ui.subject_chip(s.subject_name, s.subject_color) }}<span>{{ s.session_date | datefmt("%d %b") }} · {{ s.start_time | timefmt }}</span></div>
+          </div>
+          <span class="small fw-semibold tabular text-nowrap">{{ s.duration_minutes | minutes }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="card-body">{{ ui.empty_state("bi-stopwatch", "No sessions yet", "Plan focused study blocks and mark them done to build your weekly hours.", url_for('study.create'), "Plan session", compact=True) }}</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+<script id="chart-data" type="application/json">{{ chart_data | tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+{% endblock %}
