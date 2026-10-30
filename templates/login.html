@@ -2,7 +2,7 @@
 {% block title %}Sign in{% endblock %}
 {% block auth_content %}
 <h1>Welcome back</h1>
-<p class="text-muted mb-4">Sign in to see what is due next</p>
+<p class="text-muted mb-4">Sign in to see what is due</p>
 <form method="post" novalidate>
   {{ form.hidden_tag() }}
   {{ ui.field(form.email, autocomplete="email", placeholder="you@college.edu", autofocus=true) }}
