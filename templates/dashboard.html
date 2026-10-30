@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-{% call ui.page_header("Hello, " ~ current_user.first_name, today | datefmt("%A, %d %B %Y") ~ " · here is where things stand.") %}
+{% call ui.page_header("Helloooooo, " ~ current_user.first_name, today | datefmt("%A, %d %B %Y") ~ " · here is where things stand.") %}
   <a class="btn btn-light" href="{{ url_for('subjects.create') }}"><i class="bi bi-collection"></i>New subject</a>
   <a class="btn btn-light" href="{{ url_for('study.create') }}"><i class="bi bi-stopwatch"></i>Plan session</a>
   <a class="btn btn-primary" href="{{ url_for('assignments.create') }}"><i class="bi bi-plus-lg"></i>New assignment</a>
